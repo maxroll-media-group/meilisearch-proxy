@@ -1,0 +1,18 @@
+{{- if .Values.pdb.enabled -}}
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ include "meilisearch-proxy.fullname" . }}-pdb
+  labels:
+    app: {{ include "meilisearch-proxy.name" . }}
+    chart: {{ include "meilisearch-proxy.chart" . }}
+    release: {{ .Release.Name }}
+spec:
+  minAvailable: {{ .Values.pdb.minAvailable }}
+{{- if .Values.pdb.maxUnavailable -}}
+  maxUnavailable: {{ .Values.pdb.maxUnavailable }}
+{{- end }}
+  selector:
+    matchLabels:
+      app: meilisearch-proxy
+{{- end }}

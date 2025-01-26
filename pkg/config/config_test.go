@@ -19,6 +19,9 @@ var _ = Describe("Config", func() {
 			os.Setenv("MEILISEARCH_HOST", "http://localhost:7700")
 			os.Setenv("MEILISEARCH_MASTER_KEY", "masterKey")
 			os.Setenv("PROXY_MASTER_KEY", "proxyMasterKey")
+			os.Setenv("HEALTH_MAX_FAILURES", "44")
+			os.Setenv("HEALTH_MIN_SUCCESSES", "2")
+			os.Setenv("HEALTH_EXIT_ON_MAX_FAILURES", "false")
 			os.Setenv("PORT", "8080")
 
 			cfg, err := config.LoadConfig(true)
@@ -30,6 +33,9 @@ var _ = Describe("Config", func() {
 				MeilisearchMasterKey:   "masterKey",
 				ProxyMasterKey:         "proxyMasterKey",
 				ProxyMasterKeyOverride: false,
+				MaxFailures:            44,
+				MinSuccesses:           2,
+				ExitOnMaxFailures:      false,
 				Port:                   "8080",
 				CacheConfig: &config.CacheConfig{
 					TTL:    300,
@@ -50,7 +56,9 @@ var _ = Describe("Config", func() {
 		os.Unsetenv("MEILISEARCH_MASTER_KEY")
 		os.Unsetenv("PROXY_MASTER_KEY")
 		os.Unsetenv("PORT")
-
+		os.Unsetenv("HEALTH_MAX_FAILURES")
+		os.Unsetenv("HEALTH_MIN_SUCCESSES")
+		os.Unsetenv("HEALTH_EXIT_ON_MAX_FAILURES")
 	})
 
 })

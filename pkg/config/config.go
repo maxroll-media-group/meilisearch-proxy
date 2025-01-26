@@ -18,7 +18,9 @@ type Config struct {
 	ProxyPurgeToken        string
 	Port                   string
 	CacheConfig            *CacheConfig
-	AutoRestartInterval    time.Duration
+	MaxFailures            int
+	MinSuccesses           int
+	ExitOnMaxFailures      bool
 }
 
 type CacheConfig struct {
@@ -70,7 +72,9 @@ func LoadConfig(skipUrlCheck bool) (*Config, error) {
 		ProxyMasterKeyOverride: false,
 		Port:                   os.Getenv("PORT"),
 		CacheConfig:            CacheConfig,
-		AutoRestartInterval:    getAutoRestartInterval(),
+		MaxFailures:            getIntegerOrDefault(os.Getenv("HEALTH_MAX_FAILURES"), 5),
+		MinSuccesses:           getIntegerOrDefault(os.Getenv("HEALTH_MIN_SUCCESSES"), 2),
+		ExitOnMaxFailures:      getBoolOrDefault(os.Getenv("HEALTH_EXIT_ON_MAX_FAILURES"), true),
 	}
 
 	if config.Port == "" {
@@ -98,13 +102,30 @@ func LoadConfig(skipUrlCheck bool) (*Config, error) {
 	return config, nil
 }
 
-func getAutoRestartInterval() time.Duration {
-	// os.Getenv("AUTO_RESTART_INTERVAL") is a string (1s, 1m, 1h, etc)
-	interval, err := time.ParseDuration(os.Getenv("AUTO_RESTART_INTERVAL"))
-
-	if err != nil {
-		return 0
+func getIntegerOrDefault(value string, defaultValue int) int {
+	if value == "" {
+		return defaultValue
 	}
 
-	return interval
+	intValue, err := strconv.Atoi(value)
+
+	if err != nil {
+		return defaultValue
+	}
+
+	return intValue
+}
+
+func getBoolOrDefault(value string, defaultValue bool) bool {
+	if value == "" {
+		return defaultValue
+	}
+
+	boolValue, err := strconv.ParseBool(value)
+
+	if err != nil {
+		return defaultValue
+	}
+
+	return boolValue
 }

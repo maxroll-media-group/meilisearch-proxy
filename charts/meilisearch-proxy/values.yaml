@@ -82,6 +82,11 @@ affinity: {}
 
 existingSecret: ""
 
+pdb:
+  enabled: false
+  minAvailable: 1
+  maxUnavailable: ""
+
 meilisearch:
   url: "http://meilisearch:7700"
   masterKey: ""
@@ -94,6 +99,7 @@ proxy:
   masterKey: ""
   logLevel: "info"
   purgeToken: ""
-  autoRestartInterval: "0"
-
-
+  healthcheck:
+    maxFailures: 3
+    minSuccesses: 2
+    exitOnFailure: false

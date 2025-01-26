@@ -25,6 +25,14 @@ import (
 	"github.com/rs/zerolog"
 )
 
+type ProxyHealth struct {
+	failures    int
+	lastFailure *time.Time
+	successes   int
+	logger      zerolog.Logger
+	config      *config.Config
+}
+
 type Proxy struct {
 	source *url.URL
 
@@ -32,6 +40,7 @@ type Proxy struct {
 	cache       *cache.Cache[string]
 	config      *config.Config
 	startupTime time.Time
+	health      ProxyHealth
 	context.Context
 	zerolog.Logger
 }
@@ -68,8 +77,11 @@ func NewProxy(config *config.Config) *Proxy {
 	}
 	cache := caching.NewCache(ctx, config.CacheConfig)
 
-	if config.AutoRestartInterval > 0 {
-		logger.Info().Msgf("Auto restart interval set to %s", config.AutoRestartInterval)
+	logger.Info().Msgf("Proxy exists after %d consecutive failures", config.MaxFailures)
+
+	health := ProxyHealth{
+		config: config,
+		logger: logger,
 	}
 
 	return &Proxy{
@@ -77,6 +89,7 @@ func NewProxy(config *config.Config) *Proxy {
 		proxy:       proxy,
 		cache:       cache,
 		config:      config,
+		health:      health,
 		Context:     ctx,
 		Logger:      logger,
 		startupTime: time.Now(),
@@ -90,24 +103,13 @@ func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		// challenge: the health check should check if the underlying meilisearch is reachable
 		// and if the cache is working. However, stale cache entries should still be used to avoid downtime.
 
-		autoRestartInterval := p.config.AutoRestartInterval
-
-		if autoRestartInterval > 0 {
-			// auto restart interval is time (1h, 1d, 1w, 1m, 1y)
-			// if the proxy is running for more than the interval, it should restart itself
-			// this is to avoid memory leaks and other issues
-			if time.Since(p.startupTime) > autoRestartInterval {
-				p.Logger.Warn().Msgf("Restarting proxy after running for %s", autoRestartInterval)
-
-				// fail the health check
-				w.WriteHeader(http.StatusServiceUnavailable)
-				return
-			}
-
+		if p.health.IsHealthy() {
+			w.WriteHeader(http.StatusOK)
+			return
+		} else {
+			w.WriteHeader(http.StatusServiceUnavailable)
+			return
 		}
-
-		w.WriteHeader(http.StatusOK)
-		return
 	}
 
 	if regexp.MustCompile(`^/indexes/[^/]+/search$`).MatchString(r.URL.Path) {
@@ -162,10 +164,17 @@ func (p *Proxy) handleSearch(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(recorder.Code)
 	w.Write(responseBody)
 
+	defer r.Body.Close()
+
 	// never cache an error response or an empty response
-	if recorder.Code != http.StatusOK || len(responseBody) == 0 {
+	if recorder.Code != http.StatusOK {
 		p.Logger.Debug().Msgf("Not caching response for %s, key: %s", r.URL.Path, cacheKeyString)
 		p.Logger.Warn().Msgf("[%s] Could not reach upstream Meilisearch. Path: %s, key: %s", indexName, r.URL.Path, cacheKeyString)
+		return
+	}
+
+	if len(responseBody) == 0 {
+		p.Logger.Debug().Msgf("Not caching empty response for %s, key: %s", r.URL.Path, cacheKeyString)
 		return
 	}
 
@@ -176,6 +185,7 @@ func (p *Proxy) handleSearch(w http.ResponseWriter, r *http.Request) {
 
 	if err != nil {
 		p.Logger.Error().Msgf("[%s] Error storing response in cache for %s, key: %s: %s", indexName, r.URL.Path, cacheKeyString, err)
+		p.health.Fail()
 	}
 }
 
@@ -259,6 +269,8 @@ func (p *Proxy) Listen() {
 
 	log.Printf("Starting proxy server on  :%s", p.config.Port)
 
+	go p.MonitorMeilisearch()
+
 	http.ListenAndServe(fmt.Sprintf(":%s", p.config.Port), mux)
 }
 
@@ -296,13 +308,46 @@ func (p *Proxy) headersMiddleware(next http.Handler) http.Handler {
 	})
 }
 
+func (p *Proxy) MonitorMeilisearch() {
+	for {
+
+		if p.health.failures >= p.config.MaxFailures {
+			if p.config.ExitOnMaxFailures {
+				p.Logger.Fatal().Msgf("Meilisearch health check max failure count reached, exiting")
+			} else {
+				p.Logger.Error().Msgf("Meilisearch health check max failure count reached, not existing due to ExitOnMaxFailures=false")
+			}
+		}
+
+		if p.health.successes >= p.config.MinSuccesses {
+			p.Logger.Info().Msgf("Meilisearch host is reachable again")
+			p.health.Reset()
+		}
+
+		resp, err := http.Get(p.source.String())
+		if err != nil {
+			p.health.Fail()
+			p.Logger.Error().Msgf("Error reaching Meilisearch host: %s", err)
+		} else if p.health.failures > 0 {
+			p.health.Success()
+		}
+
+		if resp != nil {
+			resp.Body.Close()
+		}
+
+		time.Sleep(5 * time.Second)
+	}
+}
+
 func (p *Proxy) PurgeCache(index string) error {
 
 	// test if the underlying meilisearch is reachable
-	_, err := http.Get(p.source.String())
+	resp, err := http.Get(p.source.String())
 	if err != nil {
 		return fmt.Errorf("Error reaching Meilisearch host: %s, refusing to purge cache", err)
 	}
+	defer resp.Body.Close()
 
 	if index != "" {
 		p.Logger.Info().Msgf("Purging cache for index: %s", index)
@@ -316,4 +361,32 @@ func (p *Proxy) PurgeCache(index string) error {
 
 func (p *Proxy) GetCache() *cache.Cache[string] {
 	return p.cache
+}
+
+func (p *ProxyHealth) Fail() {
+	p.failures++
+	now := time.Now()
+	p.lastFailure = &now
+
+	p.logger.Error().Msgf("Meilisearch Health check failed %d time(s), last failure: %s", p.failures, p.lastFailure)
+}
+
+func (p *ProxyHealth) Success() {
+	p.successes++
+	p.logger.Info().Msgf("Meilisearch health check succeeded %d time(s)", p.successes)
+}
+
+func (p *ProxyHealth) Reset() {
+	p.failures = 0
+	p.successes = 0
+	p.lastFailure = nil
+	p.logger.Info().Msg("Resetting health check failure count")
+}
+
+func (p *ProxyHealth) IsHealthy() bool {
+	if p.failures >= p.config.MaxFailures {
+		p.logger.Error().Msgf("Proxy unhealthy, %d consecutive failures", p.failures)
+		return false
+	}
+	return true
 }
