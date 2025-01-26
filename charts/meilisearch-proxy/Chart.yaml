@@ -4,6 +4,6 @@ description: A minimal reverse proxy for MeiliSearch with caching capabilities
 
 type: application
 
-version: 0.1.65
+version: 0.2
 
-appVersion: "v0.1.65"
+appVersion: "v0.2"
