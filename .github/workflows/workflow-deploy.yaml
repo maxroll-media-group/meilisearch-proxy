@@ -77,6 +77,7 @@ jobs:
         with:
           images: ${{ env.ECR_FULL_IMAGE }}
           tags: |
+            type=raw,value=${{ env.IMAGE_NAME }},enable=true
             type=raw,value=latest,enable=true
             type=semver,pattern={{raw}},enable=true
             type=sha
