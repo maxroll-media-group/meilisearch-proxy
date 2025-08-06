@@ -11,15 +11,14 @@ env:
   IMAGE_NAME: meilisearch-proxy
   HARBOR_FULL_IMAGE: registry.maxroll.gg/library/meilisearch-proxy
   ### ECR
-  ECR_FULL_IMAGE: 019918971229.dkr.ecr.us-east-1.amazonaws.com/maxroll-ecr-dev/frontend
+  ECR_FULL_IMAGE: 019918971229.dkr.ecr.us-east-1.amazonaws.com/maxroll-ecr-dev/meilisearch-proxy
   AWS_REGION: us-east-1
   AWS_CREDS: arn:aws:iam::019918971229:role/maxroll-githubaction-auth-role
   # --- IMPORTANT: Configure these for your ECS deployment ---
   ECS_CLUSTER_NAME: maxroll-private-dev-cluster # Replace with your ECS Cluster Name
   ECS_SERVICE_NAME: maxroll-frontend-dev-ecs-service  # Replace with your ECS Service Name
   ECS_TASK_DEFINITION_FILE: config/task-definition.json # Path to your task definition file
-  CONTAINER_NAME_IN_TASK_DEF: frontend # Name of the container in your task definition to update
-  FULL_IMAGE: registry.maxroll.gg/library/meilisearch-proxy
+  CONTAINER_NAME_IN_TASK_DEF: meilisearch-proxy # Name of the container in your task definition to update
 
 permissions:
   actions: write
@@ -118,7 +117,7 @@ jobs:
 #        id: meta
 #        uses: docker/metadata-action@v4
 #        with:
-#          images: ${{ env.FULL_IMAGE }}
+#          images: ${{ env.HARBOR_FULL_IMAGE }}
 #          tags: |
 #            type=raw,value=latest,enable=true
 #            type=semver,pattern={{raw}},enable=true
