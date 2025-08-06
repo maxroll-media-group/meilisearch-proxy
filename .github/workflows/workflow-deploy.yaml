@@ -21,6 +21,21 @@ env:
   CONTAINER_NAME_IN_TASK_DEF: frontend # Name of the container in your task definition to update
   FULL_IMAGE: registry.maxroll.gg/library/meilisearch-proxy
 
+permissions:
+  actions: write
+  checks: write
+  contents: write
+  deployments: write
+  discussions: write
+  id-token: write
+  issues: write
+  packages: write
+  pages: write
+  pull-requests: write
+  repository-projects: write
+  security-events: write
+  statuses: write
+
 jobs:
   test:
     runs-on: ubuntu-latest
