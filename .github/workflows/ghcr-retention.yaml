@@ -17,18 +17,32 @@ permissions:
 jobs:
   prune:
     runs-on: ubuntu-latest
+    # The action only deletes a package version when all of its tags match a
+    # filter, and every release carries v*, sha-* and latest on the same
+    # version. The two steps stay disjoint: releases only match the first
+    # filter, branch builds and test tags only match the second.
     steps:
-      - uses: snok/container-retention-policy@v3.1.0
+      - name: Keep the 5 most recent releases
+        uses: snok/container-retention-policy@v3.1.0
         with:
           account: maxroll-media-group
           token: ${{ secrets.GITHUB_TOKEN }}
           image-names: meilisearch-proxy
-          # Every release carries its v*, sha-* and latest tags on the same
-          # package version, and the action only deletes a version when all of
-          # its tags match a filter. List all three patterns here.
           image-tags: 'v* sha-* latest'
-          # Keep the 5 most recent releases, so rollbacks have an image to pull.
           keep-n-most-recent: 5
+          cut-off: 1s
+          timestamp-to-use: created_at
+          dry-run: ${{ github.event_name == 'schedule' && 'false' || inputs.dry-run }}
+
+      - name: Keep the 3 most recent non-release builds
+        uses: snok/container-retention-policy@v3.1.0
+        with:
+          account: maxroll-media-group
+          token: ${{ secrets.GITHUB_TOKEN }}
+          image-names: meilisearch-proxy
+          # Branch dispatches and non-semver tags publish sha-* only.
+          image-tags: 'sha-*'
+          keep-n-most-recent: 3
           cut-off: 1s
           timestamp-to-use: created_at
           dry-run: ${{ github.event_name == 'schedule' && 'false' || inputs.dry-run }}
