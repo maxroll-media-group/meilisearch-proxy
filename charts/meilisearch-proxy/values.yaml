@@ -5,7 +5,7 @@
 replicaCount: 1
 
 image:
-  repository: registry.maxroll.gg/library/meilisearch-proxy
+  repository: ghcr.io/maxroll-media-group/meilisearch-proxy
   pullPolicy: IfNotPresent
   tag: ""
 
