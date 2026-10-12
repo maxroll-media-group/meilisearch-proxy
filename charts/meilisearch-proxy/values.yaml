@@ -99,7 +99,10 @@ proxy:
   masterKey: ""
   logLevel: "info"
   purgeToken: ""
+  # Left without defaults so the secret template can tell an explicit user
+  # value apart from the chart default. Precedence when rendering the secret:
+  # proxy.healthcheck.* > health.* (legacy) > 3/2/false.
   healthcheck:
-    maxFailures: 3
-    minSuccesses: 2
-    exitOnFailure: false
+    # maxFailures: 3
+    # minSuccesses: 2
+    # exitOnFailure: false
