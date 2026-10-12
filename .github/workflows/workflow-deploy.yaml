@@ -47,14 +47,17 @@ jobs:
         uses: actions/checkout@v3
       - name: Check release tag
         id: release
-        # A release is a tag that matches the chart version exactly, e.g. tag
-        # v0.2.1 with Chart.yaml version 0.2.1. Test tags and branch
-        # dispatches build without moving `latest` or the release chart.
+        # A release is a tag that matches both the chart version and the
+        # appVersion exactly, e.g. tag v0.2.1 with Chart.yaml 0.2.1. Test tags
+        # and branch dispatches build without moving `latest` or the chart.
         if: github.ref_type == 'tag'
         run: |
-          version=$(awk '/^version:/{print $2}' charts/meilisearch-proxy/Chart.yaml)
-          if [[ "$GITHUB_REF_NAME" == "v$version" ]]; then
+          version=$(awk '/^version:/{print $2}' charts/meilisearch-proxy/Chart.yaml | sed 's/"//g' | sed "s/'//g")
+          app_version=$(awk '/^appVersion:/{print $2}' charts/meilisearch-proxy/Chart.yaml | sed 's/"//g' | sed "s/'//g")
+          if [[ "$GITHUB_REF_NAME" == "v$version" && "$app_version" == "v$version" ]]; then
             echo "is_release=true" >> "$GITHUB_OUTPUT"
+          elif [[ "$GITHUB_REF_NAME" =~ ^v?[0-9]+\.[0-9]+\.[0-9]+ ]]; then
+            echo "::warning title=Tag is not a release::${GITHUB_REF_NAME} does not match chart version ${version} / appVersion ${app_version}; publishing sha-* only"
           fi
       - name: Docker meta
         id: meta
@@ -63,7 +66,7 @@ jobs:
           images: ${{ env.FULL_IMAGE }}
           tags: |
             type=raw,value=latest,enable=${{ steps.release.outputs.is_release == 'true' }}
-            type=semver,pattern={{raw}},enable=true
+            type=semver,pattern={{raw}},enable=${{ steps.release.outputs.is_release == 'true' }}
             # Releases carry v* and latest only, so the retention rules can
             # tell them apart from sha-only builds.
             type=sha,enable=${{ steps.release.outputs.is_release != 'true' }}
@@ -74,7 +77,7 @@ jobs:
           images: ${{ env.GHCR_IMAGE }}
           tags: |
             type=raw,value=latest,enable=${{ steps.release.outputs.is_release == 'true' }}
-            type=semver,pattern={{raw}},enable=true
+            type=semver,pattern={{raw}},enable=${{ steps.release.outputs.is_release == 'true' }}
             type=sha,enable=${{ steps.release.outputs.is_release != 'true' }}
       - name: Login to Docker Registry
         uses: docker/login-action@v2
