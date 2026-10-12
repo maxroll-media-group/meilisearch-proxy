@@ -18,9 +18,9 @@ jobs:
   prune:
     runs-on: ubuntu-latest
     # The action only deletes a package version when all of its tags match a
-    # filter, and every release carries v*, sha-* and latest on the same
-    # version. The two steps stay disjoint: releases only match the first
-    # filter, branch builds and test tags only match the second.
+    # filter. Releases carry v* and latest; branch builds and test tags carry
+    # sha-* only. The two steps below are therefore disjoint: a non-release
+    # build can never occupy a release slot.
     steps:
       - name: Keep the 5 most recent releases
         uses: snok/container-retention-policy@v3.1.0
@@ -28,7 +28,7 @@ jobs:
           account: maxroll-media-group
           token: ${{ secrets.GITHUB_TOKEN }}
           image-names: meilisearch-proxy
-          image-tags: 'v* sha-* latest'
+          image-tags: 'v* latest'
           keep-n-most-recent: 5
           cut-off: 1s
           timestamp-to-use: created_at
@@ -40,7 +40,6 @@ jobs:
           account: maxroll-media-group
           token: ${{ secrets.GITHUB_TOKEN }}
           image-names: meilisearch-proxy
-          # Branch dispatches and non-semver tags publish sha-* only.
           image-tags: 'sha-*'
           keep-n-most-recent: 3
           cut-off: 1s
