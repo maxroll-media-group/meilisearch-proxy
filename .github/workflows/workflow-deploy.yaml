@@ -51,7 +51,7 @@ jobs:
         with:
           images: ${{ env.FULL_IMAGE }}
           tags: |
-            type=raw,value=latest,enable=true
+            type=raw,value=latest,enable=${{ github.ref_type == 'tag' }}
             type=semver,pattern={{raw}},enable=true
             type=sha
       - name: Docker meta (GHCR)
@@ -60,7 +60,7 @@ jobs:
         with:
           images: ${{ env.GHCR_IMAGE }}
           tags: |
-            type=raw,value=latest,enable=true
+            type=raw,value=latest,enable=${{ github.ref_type == 'tag' }}
             type=semver,pattern={{raw}},enable=true
             type=sha
       - name: Login to Docker Registry
@@ -102,6 +102,9 @@ jobs:
         run: helm registry login -u ${{ github.actor }} -p ${{ secrets.GITHUB_TOKEN }} ghcr.io
 
       - name: Push Helm chart to registry
+        # Only tag runs publish a release chart; a dispatch from a branch
+        # would otherwise overwrite the chart version in Chart.yaml.
+        if: github.ref_type == 'tag'
         run: |
           for file in *.tgz; do
             helm push $file oci://registry.maxroll.gg/library

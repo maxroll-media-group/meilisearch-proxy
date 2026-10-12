@@ -17,23 +17,18 @@ permissions:
 jobs:
   prune:
     runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          # Keep the 5 most recent releases and the 3 most recent sha-* builds
-          - tags: 'v*'
-            keep: 5
-          - tags: 'sha-*'
-            keep: 3
     steps:
       - uses: snok/container-retention-policy@v3.1.0
         with:
           account: maxroll-media-group
           token: ${{ secrets.GITHUB_TOKEN }}
           image-names: meilisearch-proxy
-          image-tags: ${{ matrix.tags }}
-          keep-n-most-recent: ${{ matrix.keep }}
+          # Every release carries its v*, sha-* and latest tags on the same
+          # package version, and the action only deletes a version when all of
+          # its tags match a filter. List all three patterns here.
+          image-tags: 'v* sha-* latest'
+          # Keep the 5 most recent releases, so rollbacks have an image to pull.
+          keep-n-most-recent: 5
           cut-off: 1s
           timestamp-to-use: created_at
           dry-run: ${{ github.event_name == 'schedule' && 'false' || inputs.dry-run }}
