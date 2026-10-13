@@ -112,7 +112,7 @@ jobs:
         run: helm package charts/meilisearch-proxy
 
       - name: Login to Helm registry
-        run: helm registry login -u ${{ secrets.HARBOR_USERNAME }} -p ${{ secrets.HARBOR_PASSWORD }} https://registry.maxroll.gg
+        run: helm registry login -u ${{ secrets.HARBOR_USERNAME }} -p ${{ secrets.HARBOR_PASSWORD }} registry.maxroll.gg
 
       - name: Login to GHCR Helm registry
         run: helm registry login -u ${{ github.actor }} -p ${{ secrets.GITHUB_TOKEN }} ghcr.io
