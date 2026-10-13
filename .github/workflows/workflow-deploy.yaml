@@ -12,7 +12,6 @@ permissions:
 
 env:
   IMAGE_NAME: meilisearch-proxy
-  FULL_IMAGE: registry.maxroll.gg/library/meilisearch-proxy
   GHCR_IMAGE: ghcr.io/${{ github.repository }}
 
 jobs:
@@ -63,28 +62,13 @@ jobs:
         id: meta
         uses: docker/metadata-action@v4
         with:
-          images: ${{ env.FULL_IMAGE }}
+          images: ${{ env.GHCR_IMAGE }}
           tags: |
             type=raw,value=latest,enable=${{ steps.release.outputs.is_release == 'true' }}
             type=semver,pattern={{raw}},enable=${{ steps.release.outputs.is_release == 'true' }}
             # Releases carry v* and latest only, so the retention rules can
             # tell them apart from sha-only builds.
             type=sha,enable=${{ steps.release.outputs.is_release != 'true' }}
-      - name: Docker meta (GHCR)
-        id: meta-ghcr
-        uses: docker/metadata-action@v4
-        with:
-          images: ${{ env.GHCR_IMAGE }}
-          tags: |
-            type=raw,value=latest,enable=${{ steps.release.outputs.is_release == 'true' }}
-            type=semver,pattern={{raw}},enable=${{ steps.release.outputs.is_release == 'true' }}
-            type=sha,enable=${{ steps.release.outputs.is_release != 'true' }}
-      - name: Login to Docker Registry
-        uses: docker/login-action@v2
-        with:
-          registry: registry.maxroll.gg
-          username: ${{ secrets.HARBOR_USERNAME }}
-          password: ${{ secrets.HARBOR_PASSWORD }}
       - name: Login to GitHub Container Registry
         uses: docker/login-action@v2
         with:
@@ -102,7 +86,6 @@ jobs:
           push: true
           tags: |
             ${{ steps.meta.outputs.tags }}
-            ${{ steps.meta-ghcr.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
 
       - name: Install Helm
@@ -111,16 +94,12 @@ jobs:
       - name: Package Helm chart
         run: helm package charts/meilisearch-proxy
 
-      - name: Login to Helm registry
-        run: helm registry login -u ${{ secrets.HARBOR_USERNAME }} -p ${{ secrets.HARBOR_PASSWORD }} registry.maxroll.gg
-
       - name: Login to GHCR Helm registry
         run: helm registry login -u ${{ github.actor }} -p ${{ secrets.GITHUB_TOKEN }} ghcr.io
 
-      - name: Push Helm chart to registry
+      - name: Push Helm chart to GHCR
         if: steps.release.outputs.is_release == 'true'
         run: |
           for file in *.tgz; do
-            helm push $file oci://registry.maxroll.gg/library
             helm push $file oci://ghcr.io/maxroll-media-group/meilisearch-proxy/charts
           done

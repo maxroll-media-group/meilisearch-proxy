@@ -32,9 +32,9 @@ We only test with the self-hosted version, it will work with Meilisearch cloud b
 You can install the proxy in Kubernetes using our helm chart:
 
 ```
-helm pull oci://registry.maxroll.gg/library/meilisearch-proxy --version 0.1.5
+helm pull oci://ghcr.io/maxroll-media-group/meilisearch-proxy/charts/meilisearch-proxy --version 0.2.1
 
-helm install meilisearch-proxy oci://registry.maxroll.gg/library/meilisearch-proxy--version 0.1.5 \
+helm install meilisearch-proxy oci://ghcr.io/maxroll-media-group/meilisearch-proxy/charts/meilisearch-proxy --version 0.2.1 \
 --set meilisearch.url=http://meilisearch:7700 \
 --set meilisearch.masterKey=<master_key> \
 --set proxy.purgeToken=<purge_secret> \
@@ -43,5 +43,5 @@ helm install meilisearch-proxy oci://registry.maxroll.gg/library/meilisearch-pro
 You can also run the docker container directly:
 
 ```
-docker run -p 7700:7700 -e MEILISEARCH_HOST=http://meilisearch-endpoint MEILISEARCH_MASTER_KEY=xxxx  -it registry.maxroll.gg/library/meilisearch-proxy:latest
+docker run -p 7700:7700 -e MEILISEARCH_HOST=http://meilisearch-endpoint MEILISEARCH_MASTER_KEY=xxxx  -it ghcr.io/maxroll-media-group/meilisearch-proxy:latest
 ```
