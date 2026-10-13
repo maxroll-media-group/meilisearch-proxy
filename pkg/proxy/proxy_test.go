@@ -2,7 +2,9 @@ package proxy_test
 
 import (
 	"io"
+	"net"
 	"net/http"
+	"time"
 
 	"github.com/alicebob/miniredis/v2"
 	"github.com/eko/gocache/lib/v4/store"
@@ -76,6 +78,18 @@ var _ = Describe("Proxy", Ordered, func() {
 
 		proxyServer = proxy.NewProxy(cfg)
 		go proxyServer.Listen()
+
+		// both servers listen from goroutines, wait for the ports to accept
+		// connections before the first spec fires a request
+		for _, serverAddr := range []string{"localhost:7777", "localhost:8888"} {
+			Eventually(func() error {
+				conn, err := net.DialTimeout("tcp", serverAddr, 500*time.Millisecond)
+				if err == nil {
+					conn.Close()
+				}
+				return err
+			}, "5s", "20ms").Should(Succeed())
+		}
 	})
 
 	Context("ProxyCalls", func() {
