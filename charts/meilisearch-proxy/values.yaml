@@ -5,7 +5,7 @@
 replicaCount: 1
 
 image:
-  repository: registry.maxroll.gg/library/meilisearch-proxy
+  repository: ghcr.io/maxroll-media-group/meilisearch-proxy
   pullPolicy: IfNotPresent
   tag: ""
 
@@ -99,7 +99,10 @@ proxy:
   masterKey: ""
   logLevel: "info"
   purgeToken: ""
+  # Left without defaults so the secret template can tell an explicit user
+  # value apart from the default. Precedence when rendering the secret:
+  # proxy.healthcheck.* > health.* (legacy) > binary defaults (pkg/config: 5/2/true).
   healthcheck:
-    maxFailures: 3
-    minSuccesses: 2
-    exitOnFailure: false
+    # maxFailures: 5
+    # minSuccesses: 2
+    # exitOnFailure: true

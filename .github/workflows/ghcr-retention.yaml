@@ -1,0 +1,47 @@
+name: GHCR Retention
+
+on:
+  schedule:
+    - cron: '0 4 * * *'
+  workflow_dispatch:
+    inputs:
+      dry-run:
+        description: Only report versions that would be deleted
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  prune:
+    runs-on: ubuntu-latest
+    # The action only deletes a package version when all of its tags match a
+    # filter. Releases carry v* and latest; branch builds and test tags carry
+    # sha-* only. The two steps below are therefore disjoint: a non-release
+    # build can never occupy a release slot.
+    steps:
+      - name: Keep the 5 most recent releases
+        uses: snok/container-retention-policy@v3.1.0
+        with:
+          account: maxroll-media-group
+          token: ${{ secrets.GITHUB_TOKEN }}
+          image-names: meilisearch-proxy
+          image-tags: 'v* latest'
+          keep-n-most-recent: 5
+          cut-off: 1s
+          timestamp-to-use: created_at
+          dry-run: ${{ github.event_name == 'schedule' && 'false' || inputs.dry-run }}
+
+      - name: Keep the 3 most recent non-release builds
+        uses: snok/container-retention-policy@v3.1.0
+        with:
+          account: maxroll-media-group
+          token: ${{ secrets.GITHUB_TOKEN }}
+          image-names: meilisearch-proxy
+          image-tags: 'sha-*'
+          keep-n-most-recent: 3
+          cut-off: 1s
+          timestamp-to-use: created_at
+          dry-run: ${{ github.event_name == 'schedule' && 'false' || inputs.dry-run }}

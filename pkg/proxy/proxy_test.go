@@ -64,6 +64,9 @@ var _ = Describe("Proxy", Ordered, func() {
 			ProxyPurgeToken:        "token",
 			ProxyMasterKeyOverride: false,
 			Port:                   "8888",
+			MaxFailures:            5,
+			MinSuccesses:           2,
+			ExitOnMaxFailures:      false,
 			CacheConfig: &config.CacheConfig{
 				TTL:    300,
 				Engine: "redis",

@@ -1,13 +1,19 @@
 name: Build and Deploy
 
 on:
+  workflow_dispatch:
   push:
     tags:
       - '*'
 
+permissions:
+  contents: read
+  packages: write
+
 env:
   IMAGE_NAME: meilisearch-proxy
   FULL_IMAGE: registry.maxroll.gg/library/meilisearch-proxy
+  GHCR_IMAGE: ghcr.io/${{ github.repository }}
 
 jobs:
   test:
@@ -39,21 +45,52 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
+      - name: Check release tag
+        id: release
+        # A release is a tag that matches both the chart version and the
+        # appVersion exactly, e.g. tag v0.2.1 with Chart.yaml 0.2.1. Test tags
+        # and branch dispatches build without moving `latest` or the chart.
+        if: github.ref_type == 'tag'
+        run: |
+          version=$(awk '/^version:/{print $2}' charts/meilisearch-proxy/Chart.yaml | sed 's/"//g' | sed "s/'//g")
+          app_version=$(awk '/^appVersion:/{print $2}' charts/meilisearch-proxy/Chart.yaml | sed 's/"//g' | sed "s/'//g")
+          if [[ "$GITHUB_REF_NAME" == "v$version" && "$app_version" == "v$version" ]]; then
+            echo "is_release=true" >> "$GITHUB_OUTPUT"
+          elif [[ "$GITHUB_REF_NAME" =~ ^v?[0-9]+\.[0-9]+\.[0-9]+ ]]; then
+            echo "::warning title=Tag is not a release::${GITHUB_REF_NAME} does not match chart version ${version} / appVersion ${app_version}; publishing sha-* only"
+          fi
       - name: Docker meta
         id: meta
         uses: docker/metadata-action@v4
         with:
           images: ${{ env.FULL_IMAGE }}
           tags: |
-            type=raw,value=latest,enable=true
-            type=semver,pattern={{raw}},enable=true
-            type=sha
+            type=raw,value=latest,enable=${{ steps.release.outputs.is_release == 'true' }}
+            type=semver,pattern={{raw}},enable=${{ steps.release.outputs.is_release == 'true' }}
+            # Releases carry v* and latest only, so the retention rules can
+            # tell them apart from sha-only builds.
+            type=sha,enable=${{ steps.release.outputs.is_release != 'true' }}
+      - name: Docker meta (GHCR)
+        id: meta-ghcr
+        uses: docker/metadata-action@v4
+        with:
+          images: ${{ env.GHCR_IMAGE }}
+          tags: |
+            type=raw,value=latest,enable=${{ steps.release.outputs.is_release == 'true' }}
+            type=semver,pattern={{raw}},enable=${{ steps.release.outputs.is_release == 'true' }}
+            type=sha,enable=${{ steps.release.outputs.is_release != 'true' }}
       - name: Login to Docker Registry
         uses: docker/login-action@v2
         with:
           registry: registry.maxroll.gg
           username: ${{ secrets.HARBOR_USERNAME }}
           password: ${{ secrets.HARBOR_PASSWORD }}
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@v2
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
       - uses: docker/setup-buildx-action@v2
       - uses: docker/build-push-action@v6
         with:
@@ -63,7 +100,9 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
           push: true
-          tags: ${{ steps.meta.outputs.tags }}
+          tags: |
+            ${{ steps.meta.outputs.tags }}
+            ${{ steps.meta-ghcr.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
 
       - name: Install Helm
@@ -75,8 +114,13 @@ jobs:
       - name: Login to Helm registry
         run: helm registry login -u ${{ secrets.HARBOR_USERNAME }} -p ${{ secrets.HARBOR_PASSWORD }} https://registry.maxroll.gg
 
+      - name: Login to GHCR Helm registry
+        run: helm registry login -u ${{ github.actor }} -p ${{ secrets.GITHUB_TOKEN }} ghcr.io
+
       - name: Push Helm chart to registry
+        if: steps.release.outputs.is_release == 'true'
         run: |
           for file in *.tgz; do
             helm push $file oci://registry.maxroll.gg/library
+            helm push $file oci://ghcr.io/maxroll-media-group/meilisearch-proxy/charts
           done
